@@ -44,7 +44,6 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-state: '3.11'
         python-version: '3.11'
 
     - name: Install Dependencies
@@ -60,6 +59,7 @@ jobs:
 
     - name: Run Pytest
       env:
+        PYTHONPATH: backend
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         VLLM_API_URL: http://localhost:8000/v1
         OLLAMA_API_URL: http://localhost:11434
