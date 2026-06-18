@@ -2,7 +2,7 @@ import httpx
 import json
 import logging
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
+from typing import Optional
 import os
 
 logger = logging.getLogger("syncops.extraction")
