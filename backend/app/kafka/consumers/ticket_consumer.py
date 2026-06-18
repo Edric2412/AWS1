@@ -110,7 +110,7 @@ class TicketConsumer:
                         await producer_manager.send_event(self.audit_topic, "ticket_failed", {"error": str(e)})
                     except Exception:
                         logger.exception("Failed to publish ticket_failed audit event")
-        except Exception as e:
+        except Exception:
             logger.exception("Exception in consume_loop")
 
     async def execute_crm_erp_call(self, params):

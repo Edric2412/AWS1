@@ -55,7 +55,7 @@ jobs:
     - name: Lint with Ruff
       run: |
         # Stop the build if there are Python syntax errors or undefined names
-        ruff check --format=github backend/
+        ruff check --output-format=github backend/
 
     - name: Run Pytest
       env:

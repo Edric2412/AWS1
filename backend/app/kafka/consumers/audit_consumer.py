@@ -60,7 +60,7 @@ class AuditConsumer:
                         logger.info("[AUDIT TRAIL] Event: %s | Data: %s", event_type, json.dumps(data))
                 except Exception:
                     logger.exception("Error processing audit event")
-        except Exception as e:
+        except Exception:
             logger.exception("Exception in audit consume_loop")
 
     async def stop(self):
