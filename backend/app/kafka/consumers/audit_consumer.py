@@ -32,6 +32,9 @@ class AuditConsumer:
 
     async def consume_loop(self):
         """Infinite loop consuming audit events from the Kafka topic."""
+        if not self.consumer:
+            logger.error("AIOKafkaConsumer not initialized in consume_loop")
+            return
         try:
             async for msg in self.consumer:
                 if not self._is_running:

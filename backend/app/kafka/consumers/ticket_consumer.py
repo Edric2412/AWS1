@@ -51,6 +51,9 @@ class TicketConsumer:
 
     async def consume_loop(self):
         """Infinite loop consuming events from the Kafka topic."""
+        if not self.consumer:
+            logger.error("AIOKafkaConsumer not initialized in consume_loop")
+            return
         try:
             async for msg in self.consumer:
                 if not self._is_running:
@@ -122,7 +125,7 @@ class TicketConsumer:
                     "city": params.city,
                     "zipcode": params.zipcode
                 }
-                url = f"{self.crm_erp_url}/orders/{params.order_id}/address"
+                url = f"{self.crm_erp_url}/erp/orders/{params.order_id}/address"
                 logger.info("Calling PUT %s with %s", url, payload)
                 response = await client.put(url, json=payload)
                 return {"method": "PUT", "url": url, "status_code": response.status_code, "data": response.json()}
@@ -130,7 +133,7 @@ class TicketConsumer:
             elif intent == "Check Inventory":
                 if not params.item:
                     return {"status": "error", "message": "Missing item"}
-                url = f"{self.crm_erp_url}/inventory/{params.item}"
+                url = f"{self.crm_erp_url}/erp/inventory/{params.item}"
                 req_params = {}
                 if params.warehouse:
                     req_params["warehouse"] = params.warehouse
@@ -145,7 +148,7 @@ class TicketConsumer:
                     "quantity": params.quantity,
                     "warehouse": params.warehouse
                 }
-                url = f"{self.crm_erp_url}/orders/{params.order_id}/return"
+                url = f"{self.crm_erp_url}/erp/orders/{params.order_id}/return"
                 logger.info("Calling POST %s with %s", url, payload)
                 response = await client.post(url, json=payload)
                 return {"method": "POST", "url": url, "status_code": response.status_code, "data": response.json()}
@@ -156,10 +159,10 @@ class TicketConsumer:
                 payload = {
                     "tier": params.tier
                 }
-                url = f"{self.crm_erp_url}/customers/{params.customer_id}/upgrade"
-                logger.info("Calling POST %s with %s", url, payload)
-                response = await client.post(url, json=payload)
-                return {"method": "POST", "url": url, "status_code": response.status_code, "data": response.json()}
+                url = f"{self.crm_erp_url}/crm/customers/{params.customer_id}/tier"
+                logger.info("Calling PUT %s with %s", url, payload)
+                response = await client.put(url, json=payload)
+                return {"method": "PUT", "url": url, "status_code": response.status_code, "data": response.json()}
                 
             else:
                 return {"status": "skipped", "message": f"Unsupported or unknown intent: {intent}"}
