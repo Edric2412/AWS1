@@ -27,19 +27,29 @@ def query_data_lake():
     
     if is_local:
         endpoint_host = s3_endpoint.replace("http://", "").replace("https://", "")
-        logger.info("Configuring DuckDB S3 settings for local environment (%s)", endpoint_host)
-        con.execute(f"SET s3_endpoint='{endpoint_host}';")
-        con.execute("SET s3_use_ssl=false;")
-        con.execute("SET s3_url_style='path';")
-        con.execute("SET s3_access_key_id='mock';")
-        con.execute("SET s3_secret_access_key='mock';")
+        logger.info("Using Per-Request URL Parameter routing for local environment (%s)", endpoint_host)
+        
+        # Injects connection parameters directly into the path to bypass Secret Manager scoping
+        s3_path = (
+            f"s3://{bucket_name}/audit/**/*.parquet"
+            f"?s3_endpoint={endpoint_host}"
+            f"&s3_use_ssl=false"
+            f"&s3_url_style=path"
+            f"&s3_access_key_id=mock"
+            f"&s3_secret_access_key=mock"
+        )
     else:
         aws_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
-        logger.info("Configuring DuckDB S3 settings for production AWS (%s)", aws_region)
-        con.execute(f"SET s3_region='{aws_region}';")
+        logger.info("Configuring DuckDB S3 settings using Secret API for production AWS (%s)", aws_region)
+        con.execute(f"""
+            CREATE OR REPLACE SECRET aws_secret (
+                TYPE S3,
+                REGION '{aws_region}'
+            );
+        """)
+        s3_path = f"s3://{bucket_name}/audit/**/*.parquet"
         
-    s3_path = f"s3://{bucket_name}/audit/**/*.parquet"
-    logger.info("Querying data lake path: %s", s3_path)
+    logger.info("Querying data lake path: s3://%s/audit/**/*.parquet", bucket_name)
     
     query = f"""
         SELECT 
@@ -59,7 +69,6 @@ def query_data_lake():
         return df
     except Exception as e:
         logger.error("Error executing DuckDB query: %s", e)
-        # Check if the bucket is empty as a helpful diagnostic
         try:
             import boto3
             if is_local:
