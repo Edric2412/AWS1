@@ -4,24 +4,34 @@ import boto3
 
 def main():
     s3_endpoint = os.getenv("AWS_S3_ENDPOINT_URL", "http://localhost:4566")
-    bucket_name = "syncops-tickets"
+    bucket_name = os.getenv("TICKETS_BUCKET", "syncops-tickets")
     
-    print(f"Connecting to LocalStack S3 at {s3_endpoint}...")
-    try:
-        s3_client = boto3.client(
-            "s3",
-            endpoint_url=s3_endpoint,
-            region_name="us-east-1",
-            aws_access_key_id="mock",
-            aws_secret_access_key="mock"
-        )
-        
-        # Verify connection by checking bucket list or list objects
-        s3_client.list_buckets()
-    except Exception as e:
-        print(f"Error connecting to S3 endpoint: {e}", file=sys.stderr)
-        print("Please make sure LocalStack is running and accessible.", file=sys.stderr)
-        sys.exit(1)
+    is_local = any(x in s3_endpoint for x in ["localhost", "127.0.0.1", "localstack"])
+    
+    if is_local:
+        print(f"Connecting to LocalStack S3 at {s3_endpoint}...")
+        try:
+            s3_client = boto3.client(
+                "s3",
+                endpoint_url=s3_endpoint,
+                region_name="us-east-1",
+                aws_access_key_id="mock",
+                aws_secret_access_key="mock"
+            )
+            s3_client.list_buckets()
+        except Exception as e:
+            print(f"Error connecting to local S3 endpoint: {e}", file=sys.stderr)
+            print("Please make sure LocalStack is running and accessible.", file=sys.stderr)
+            sys.exit(1)
+    else:
+        print(f"Connecting to AWS S3 (region: us-east-1)...")
+        try:
+            s3_client = boto3.client("s3")
+            s3_client.list_buckets()
+        except Exception as e:
+            print(f"Error connecting to AWS S3: {e}", file=sys.stderr)
+            print("Please verify your AWS credentials.", file=sys.stderr)
+            sys.exit(1)
 
     tickets = {
         "address_change.txt": "Please update my address to 123 Main St, Paris, zipcode EC1A2 for order ORD-12345.",

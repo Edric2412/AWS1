@@ -26,3 +26,15 @@ build/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+*.tfvars.json
+.terraform.tfstate.lock.info
+*.zip
+*.pem
+*.key
+

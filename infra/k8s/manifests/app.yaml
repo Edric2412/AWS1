@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: syncops-app
+  labels:
+    app: syncops-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: syncops-app
+  template:
+    metadata:
+      labels:
+        app: syncops-app
+    spec:
+      containers:
+        - name: syncops-app
+          image: __APP_IMAGE__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "redpanda-service:29092"
+            - name: DATA_LAKE_BUCKET
+              value: "__DATA_LAKE_BUCKET__"
+            - name: AWS_DEFAULT_REGION
+              value: "__AWS_REGION__"
+            - name: AWS_S3_ENDPOINT_URL
+              value: ""
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: syncops-app-service
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+  selector:
+    app: syncops-app
