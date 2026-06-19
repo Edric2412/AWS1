@@ -47,6 +47,12 @@ class DuckDBMockWrapper:
     def query(self, query_str, *args, **kwargs):
         # Replace S3 path with local temp path
         local_query = query_str.replace("s3://syncops-data-lake", self.temp_dir)
+        
+        # Clean up any web per-request S3 URL parameters for the offline filesystem query
+        if "?" in local_query:
+            import re
+            local_query = re.sub(r'\?[^\'\s]+', '', local_query)
+            
         return self.con.query(local_query, *args, **kwargs)
 
 @pytest.mark.asyncio
