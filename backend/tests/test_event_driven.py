@@ -58,7 +58,9 @@ async def test_ticket_consumer_calls_crm_erp(mocker):
     
     assert res["status_code"] == 200
     assert res["method"] == "PUT"
-    assert "orders/ORD-12345/address" in res["url"]
+    url = res.get("url")
+    assert isinstance(url, str)
+    assert "orders/ORD-12345/address" in url
     
     # Clean up
     await consumer.extraction_engine.close()

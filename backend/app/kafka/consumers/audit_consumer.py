@@ -5,6 +5,8 @@ import logging
 from aiokafka import AIOKafkaConsumer
 from opentelemetry import trace
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+from app.services.dw_exporter import DataWarehouseExporter
+
 
 logger = logging.getLogger("syncops.kafka.consumers.audit")
 tracer = trace.get_tracer("syncops.kafka.consumers.audit")
@@ -15,6 +17,8 @@ class AuditConsumer:
         self.topic = os.getenv("AUDIT_TOPIC", "audit")
         self.consumer = None
         self._is_running = False
+        self.exporter = DataWarehouseExporter()
+
 
     async def start(self):
         """Starts the Kafka audit consumer and run loop."""
@@ -58,6 +62,10 @@ class AuditConsumer:
                         span.set_attribute("audit.event_type", event_type)
                         
                         logger.info("[AUDIT TRAIL] Event: %s | Data: %s", event_type, json.dumps(data))
+                        
+                        # Export event to Parquet in AWS S3 Data Lake asynchronously
+                        await asyncio.to_thread(self.exporter.export_audit_event, event)
+
                 except Exception:
                     logger.exception("Error processing audit event")
         except Exception:

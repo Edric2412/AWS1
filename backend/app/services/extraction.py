@@ -143,6 +143,17 @@ class ExtractionEngine:
         stage = None
         tier = None
         
+        # Extract item name if mentioned
+        for known_item in ["enterprise server", "ai accelerator", "smart sensors"]:
+            if known_item in text_lower:
+                if known_item == "enterprise server":
+                    item = "Enterprise Server"
+                elif known_item == "ai accelerator":
+                    item = "AI Accelerator"
+                elif known_item == "smart sensors":
+                    item = "Smart Sensors"
+                break
+        
         # Intent detection
         if "address" in text_lower or "ship to" in text_lower or "delivery address" in text_lower or "moved to" in text_lower or "zipcode" in text_lower:
             intent = "Update Address"

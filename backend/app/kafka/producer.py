@@ -49,6 +49,7 @@ class KafkaProducerManager:
                 headers.append((k, v.encode("utf-8")))
 
             logger.info("Publishing event %s to topic %s", event_type, topic)
+            assert self.producer is not None
             await self.producer.send_and_wait(
                 topic,
                 value=payload,
