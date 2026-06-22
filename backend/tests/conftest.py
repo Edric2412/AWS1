@@ -12,5 +12,5 @@ def setup_test_env():
     """Sets up test environment variables."""
     os.environ["VLLM_API_URL"] = "http://localhost:8000/v1"
     os.environ["OLLAMA_API_URL"] = "http://localhost:11434"
-    os.environ["OLLAMA_MODEL"] = "qwen3.5:1.5b"
-    os.environ["VLLM_MODEL"] = "Qwen/Qwen3.5-8B-Instruct"
+    os.environ["OLLAMA_MODEL"] = "gemma4:e4b"
+    os.environ["VLLM_MODEL"] = "google/gemma-4-e4b"

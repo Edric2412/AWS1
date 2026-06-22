@@ -16,7 +16,7 @@ class ConsensusVerifier:
         self.client = httpx.AsyncClient(timeout=15.0)
 
     async def verify_action(self, ticket_text: str, proposed_action: str) -> bool:
-        """Asks local Qwen/Gemma model to verify if the proposed action is correct and safe."""
+        """Asks local Gemma model to verify if the proposed action is correct and safe."""
         # Standard updates do not require consensus checks (address updates, inventory queries)
         # Critical writes like refunds (Process Return) or deal status updates require consensus
         if proposed_action not in ["Process Return", "Upgrade Account"]:

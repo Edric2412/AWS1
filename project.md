@@ -62,7 +62,7 @@ SyncOps AI orchestrates multiple cloud and AI systems to handle customer tasks a
 If the AI agent calls the mock CRM or ERP system and receives an API validation error (e.g. *"invalid warehouse code"* or *"insufficient stock"*), it does not crash or escalate to a human. Instead, it reads the raw API error payload, updates its internal context, plans a fallback strategy, and automatically resubmits a corrected call.
 
 ### Hook 2: Dual-Model Consensus Verification Gate
-Before executing high-risk actions (such as triggering an order refund or archiving a customer deal), a verification gate is triggered. The primary decider (**Google Gemini 3.1 Flash-Lite**) must agree on the refund calculation and reason with the verifier running locally (**vLLM / Ollama** running Qwen 3.5). If there is a disagreement, the transaction is suspended and routed to a human-in-the-loop review queue.
+Before executing high-risk actions (such as triggering an order refund or archiving a customer deal), a verification gate is triggered. The primary decider (**Google Gemini 3.1 Flash-Lite**) must agree on the refund calculation and reason with the verifier running locally (**vLLM / Ollama** running Gemma 4 E4B). If there is a disagreement, the transaction is suspended and routed to a human-in-the-loop review queue.
 
 ### Hook 3: Deterministic Kafka-Coordinates Idempotency (Double-Refund Protection)
 To protect against network dropouts during retry loops, the platform generates a unique, deterministic idempotency key for every action based on the consumer metadata: `SHA256(Topic + Partition + Offset)`. If the ERP/CRM database encounters the same key within a 15-minute window, it suppresses duplicate execution and returns the cached result.
@@ -83,7 +83,7 @@ To safely test the agent, a local mock service provides simulated REST endpoints
 - **ERP Service**: Handles inventory checks, invoice generation, order address modifications, and returns processing.
 
 ### 3. Structural Extraction Engine (vLLM / Ollama)
-To avoid high LLM API costs, the system routes raw text to a quantized model (e.g. Qwen 3.5) served via **vLLM on Google Colab** (exposing it via ngrok) or **Ollama locally on CPU**. Using guided decoding, the model is mathematically restricted to outputting JSON that matches the strict Pydantic schemas for order details, customer IDs, and request parameters.
+To avoid high LLM API costs, the system routes raw text to a quantized model (e.g. Gemma 4 E4B) served via **vLLM on Google Colab** (exposing it via ngrok) or **Ollama locally on CPU**. Using guided decoding, the model is mathematically restricted to outputting JSON that matches the strict Pydantic schemas for order details, customer IDs, and request parameters.
 
 ### 4. Data Warehouse & Analytics Exporter (DuckDB + Parquet)
 Upon resolving a ticket, a background consumer serializes the agent's full reasoning chain, token usage, API response times, and final outcome to **Apache Parquet** format. The Parquet file is pushed to an S3 data lake (or emulated LocalStack S3) using a time-partitioned layout:
@@ -289,7 +289,7 @@ syncops-ai/
 **Keywords**: Google Gemini API, vLLM / Ollama, Agent Loop, React
 - Implement the decider-agent loop in `agent_core.py` using Google Gemini 3.1 Flash-Lite.
 - Implement the self-correcting retry loop for tool calling.
-- Add the consensus check verifier gate using local vLLM / Ollama (Qwen 3.5).
+- Add the consensus check verifier gate using local vLLM / Ollama (Gemma 4 E4B).
 - Build the React monitoring dashboard showing real-time automation charts.
 
 ---
@@ -397,7 +397,7 @@ Exposed via ngrok as an OpenAI-compatible completion endpoint:
 ```python
 # Serving command in Colab
 !python -m vllm.entrypoints.openai.api_server \
-    --model Qwen/Qwen3.5-8B-Instruct \
+    --model google/gemma-4-e4b \
     --port 8000 \
     --max-model-len 2048
 ```
@@ -406,7 +406,7 @@ Exposed via ngrok as an OpenAI-compatible completion endpoint:
 When running offline or without Colab, the engine routes to local Ollama served on CPU:
 ```bash
 # Pull and serve a quantized model locally
-ollama pull qwen3.5:1.5b
+ollama pull gemma4:e4b
 ollama serve
 ```
 
@@ -485,7 +485,7 @@ This project structure directly validates your experience with:
 
 | Domain | Keyword | Practical Usage in SyncOps AI |
 |:---|:---|:---|
-| **AI Layer** | **vLLM** | Serves Qwen 3.5 on Colab for high-throughput structural ticket extraction. |
+| **AI Layer** | **vLLM** | Serves Gemma 4 E4B on Colab for high-throughput structural ticket extraction. |
 | | **Google Gemini** | Primary decider model (Gemini 3.1 Flash-Lite) invoked via the Google AI Studio free tier. |
 | | **Ollama** | Local CPU-bound model execution fallback for offline development. |
 | **DevOps & Infra**| **Kubernetes** | Local cluster orchestration via K3d; K3s deployment hosted on AWS EC2 with self-hosted DB. |
