@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv()
 import logging
 import uuid
 from contextlib import asynccontextmanager

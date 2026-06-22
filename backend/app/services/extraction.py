@@ -4,6 +4,8 @@ import logging
 from pydantic import BaseModel, Field
 from typing import Optional
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 logger = logging.getLogger("syncops.extraction")
 
@@ -28,7 +30,7 @@ class ExtractedTicketParams(BaseModel):
 # --- Configuration Loader ---
 VLLM_API_URL = os.getenv("VLLM_API_URL", "http://localhost:8000/v1")
 OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:1.5b")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma4:e4b")
 DEFAULT_EXTRACTION_MODEL = os.getenv("VLLM_MODEL", "Qwen/Qwen3.5-8B-Instruct")
 
 class ExtractionEngine:

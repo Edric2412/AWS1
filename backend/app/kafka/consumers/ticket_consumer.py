@@ -8,6 +8,8 @@ from opentelemetry import trace, metrics
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from app.services.extraction import ExtractionEngine
 from app.kafka.producer import producer_manager
+from app.services.agent_core import GeminiDecider
+from app.services.verifier_gate import ConsensusVerifier
 
 logger = logging.getLogger("syncops.kafka.consumers.ticket")
 tracer = trace.get_tracer("syncops.kafka.consumers.ticket")
@@ -32,6 +34,8 @@ class TicketConsumer:
         self.audit_topic = os.getenv("AUDIT_TOPIC", "audit")
         self.crm_erp_url = os.getenv("MOCK_CRM_ERP_URL", "http://localhost:8000/api/v1")
         self.extraction_engine = ExtractionEngine()
+        self.decider = GeminiDecider()
+        self.verifier = ConsensusVerifier()
         self.consumer = None
         self._is_running = False
 
@@ -88,18 +92,23 @@ class TicketConsumer:
                             params = await self.extraction_engine.extract_parameters(ticket_text)
                             span.set_attribute("extraction.intent", params.intent or "unknown")
                             
-                            # Call mock API based on intent
-                            result = await self.execute_crm_erp_call(params)
+                            # Execute the agent loop with self-correcting logic and verifier gate
+                            result = await self.decider.execute_agent_loop(
+                                ticket_text=ticket_text,
+                                order_id=data.get("order_id") or params.order_id,
+                                verifier=self.verifier,
+                                execute_func=self.execute_crm_erp_call
+                            )
                             
                             # Send audit event
                             audit_data = {
                                 "ticket_id": ticket_id,
-                                "intent": params.intent,
+                                "intent": result.get("action", params.intent),
                                 "params": params.model_dump(),
-                                "api_result": result
+                                "api_result": result.get("api_result", result)
                             }
                             await producer_manager.send_event(self.audit_topic, "ticket_processed", audit_data)
-                            tickets_processed_counter.add(1, {"intent": params.intent or "unknown"})
+                            tickets_processed_counter.add(1, {"intent": result.get("action") or "unknown"})
                         else:
                             logger.warning("Unknown event type: %s", event_type)
                             
@@ -115,51 +124,73 @@ class TicketConsumer:
 
     async def execute_crm_erp_call(self, params):
         """Invokes the corresponding CRM/ERP endpoint."""
-        async with httpx.AsyncClient() as client:
+        if hasattr(params, "action"):
+            intent = params.action
+            order_id = params.parameters.get("order_id")
+            street_address = params.parameters.get("street_address")
+            city = params.parameters.get("city")
+            zipcode = params.parameters.get("zipcode")
+            item = params.parameters.get("item")
+            warehouse = params.parameters.get("warehouse")
+            quantity = params.parameters.get("quantity")
+            customer_id = params.parameters.get("customer_id")
+            tier = params.parameters.get("tier")
+        else:
             intent = params.intent
+            order_id = params.order_id
+            street_address = params.street_address
+            city = params.city
+            zipcode = params.zipcode
+            item = params.item
+            warehouse = params.warehouse
+            quantity = params.quantity
+            customer_id = params.customer_id
+            tier = params.tier
+
+        async with httpx.AsyncClient() as client:
             if intent == "Update Address":
-                if not params.order_id:
+                if not order_id:
                     return {"status": "error", "message": "Missing order_id"}
                 payload = {
-                    "street_address": params.street_address,
-                    "city": params.city,
-                    "zipcode": params.zipcode
+                    "street_address": street_address,
+                    "city": city,
+                    "zipcode": zipcode
                 }
-                url = f"{self.crm_erp_url}/erp/orders/{params.order_id}/address"
+                url = f"{self.crm_erp_url}/erp/orders/{order_id}/address"
                 logger.info("Calling PUT %s with %s", url, payload)
                 response = await client.put(url, json=payload)
                 return {"method": "PUT", "url": url, "status_code": response.status_code, "data": response.json()}
                 
             elif intent == "Check Inventory":
-                if not params.item:
+                if not item:
                     return {"status": "error", "message": "Missing item"}
-                url = f"{self.crm_erp_url}/erp/inventory/{params.item}"
+                url = f"{self.crm_erp_url}/erp/inventory/{item}"
                 req_params = {}
-                if params.warehouse:
-                    req_params["warehouse"] = params.warehouse
+                if warehouse:
+                    req_params["warehouse"] = warehouse
                 logger.info("Calling GET %s with params %s", url, req_params)
                 response = await client.get(url, params=req_params)
                 return {"method": "GET", "url": url, "status_code": response.status_code, "data": response.json()}
                 
             elif intent == "Process Return":
-                if not params.order_id:
+                if not order_id:
                     return {"status": "error", "message": "Missing order_id"}
                 payload = {
-                    "quantity": params.quantity,
-                    "warehouse": params.warehouse
+                    "quantity": quantity,
+                    "warehouse": warehouse
                 }
-                url = f"{self.crm_erp_url}/erp/orders/{params.order_id}/return"
+                url = f"{self.crm_erp_url}/erp/orders/{order_id}/return"
                 logger.info("Calling POST %s with %s", url, payload)
                 response = await client.post(url, json=payload)
                 return {"method": "POST", "url": url, "status_code": response.status_code, "data": response.json()}
                 
             elif intent == "Upgrade Account":
-                if not params.customer_id:
+                if not customer_id:
                     return {"status": "error", "message": "Missing customer_id"}
                 payload = {
-                    "tier": params.tier
+                    "tier": tier
                 }
-                url = f"{self.crm_erp_url}/crm/customers/{params.customer_id}/tier"
+                url = f"{self.crm_erp_url}/crm/customers/{customer_id}/tier"
                 logger.info("Calling PUT %s with %s", url, payload)
                 response = await client.put(url, json=payload)
                 return {"method": "PUT", "url": url, "status_code": response.status_code, "data": response.json()}
@@ -174,3 +205,4 @@ class TicketConsumer:
             logger.info("Stopping TicketConsumer")
             await self.consumer.stop()
             await self.extraction_engine.close()
+            await self.verifier.close()
