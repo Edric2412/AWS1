@@ -21,16 +21,10 @@ spec:
             - /bin/sh
             - -c
             - |
-              exec redpanda start \
-                --smp 1 \
+              exec rpk redpanda start \
                 --overprovisioned \
-                --kafka-addr PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092 \
-                --advertise-kafka-addr PLAINTEXT://redpanda-service:29092,OUTSIDE://__EC2_PUBLIC_IP__:9092 \
-                --pandaproxy-addr 0.0.0.0:8082 \
-                --advertise-pandaproxy-addr __EC2_PUBLIC_IP__:8082 \
-                --rpc-addr 0.0.0.0:33145 \
-                --advertise-rpc-addr redpanda:33145 \
-                --mode dev-container
+                --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:29092 \
+                --advertise-kafka-addr internal://localhost:9092,external://redpanda-service:29092
           ports:
             - containerPort: 29092
               name: plaintext

@@ -1,0 +1,20 @@
+# Ignore local python environments
+venv/
+.venv/
+env/
+
+# Ignore python compilation caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore local testing databases and analytical files
+*.db
+*.parquet
+*.log
+
+# Ignore testing caches
+.pytest_cache/
+.coverage
+htmlcov/

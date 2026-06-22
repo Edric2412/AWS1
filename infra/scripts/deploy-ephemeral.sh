@@ -115,7 +115,7 @@ ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null u
 
 echo "Installing K3s on EC2 host..."
 ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@"$EC2_IP" "
-    curl -sfL https://get.k3s.io | sh - && \
+    curl -sfL https://get.k3s.io | sh -s - --disable=traefik --disable=metrics-server && \
     sudo chmod 644 /etc/rancher/k3s/k3s.yaml && \
     echo 'K3s installed and configured successfully'
 "
@@ -136,22 +136,32 @@ scp -i "$KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -
 rm -rf "$TEMP_MANIFESTS_DIR"
 
 # Step 6: Deploy resources in Kubernetes (K3s)
+echo "Generating ECR image pull secrets for K3s..."
+ECR_PASSWORD=$(aws ecr get-login-password --region "$AWS_REGION")
+ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@"$EC2_IP" "
+    sudo kubectl create secret docker-registry regcred \
+        --docker-server='$REGISTRY_URL' \
+        --docker-username=AWS \
+        --docker-password='$ECR_PASSWORD' \
+        --dry-run=client -o yaml | sudo kubectl apply -f -
+"
+
 echo "Applying Kubernetes manifests on EC2 host..."
 ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@"$EC2_IP" "
-    sudo kubectl apply -f /home/ubuntu/manifests/postgres.yaml
-    sudo kubectl apply -f /home/ubuntu/manifests/redpanda.yaml
-    sudo kubectl apply -f /home/ubuntu/manifests/app.yaml
+    sudo kubectl apply -f manifests/postgres.yaml --validate=false
+    sudo kubectl apply -f manifests/redpanda.yaml --validate=false
+    sudo kubectl apply -f manifests/app.yaml --validate=false
 "
 
 # Step 7: Poll resources until ready
 echo "Waiting for deployments to roll out..."
 ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@"$EC2_IP" "
     echo 'Waiting for PostgreSQL database rollout...'
-    sudo kubectl rollout status deployment/postgres --timeout=120s
+    sudo kubectl rollout status deployment/postgres --timeout=300s
     echo 'Waiting for Redpanda broker rollout...'
-    sudo kubectl rollout status deployment/redpanda --timeout=120s
+    sudo kubectl rollout status deployment/redpanda --timeout=300s
     echo 'Waiting for SyncOps app rollout...'
-    sudo kubectl rollout status deployment/syncops-app --timeout=120s
+    sudo kubectl rollout status deployment/syncops-app --timeout=300s
 "
 
 echo "Kubernetes deployment ready! Sleep 10s to ensure everything stabilizes..."

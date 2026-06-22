@@ -14,6 +14,8 @@ spec:
       labels:
         app: syncops-app
     spec:
+      imagePullSecrets:
+        - name: regcred
       containers:
         - name: syncops-app
           image: __APP_IMAGE__
