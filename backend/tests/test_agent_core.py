@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock
-from app.services.agent_core import GeminiDecider, AgentDecision
+from app.services.agent_core import GeminiDecider
 from app.services.verifier_gate import ConsensusVerifier
 
 @pytest.mark.asyncio

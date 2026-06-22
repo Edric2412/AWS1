@@ -1,15 +1,19 @@
-from dotenv import load_dotenv
-load_dotenv()
+from contextlib import asynccontextmanager
 import logging
 import uuid
-from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from pydantic import BaseModel
+from dotenv import load_dotenv
+
+from app.kafka.consumers.audit_consumer import AuditConsumer
+from app.kafka.consumers.ticket_consumer import TicketConsumer
+from app.kafka.producer import producer_manager
 from app.services.mock_crm_erp import router as mock_router
 from app.telemetry import init_telemetry
-from app.kafka.producer import producer_manager
-from app.kafka.consumers.ticket_consumer import TicketConsumer
-from app.kafka.consumers.audit_consumer import AuditConsumer
+
+# Call load_dotenv here after all imports are safely resolved
+load_dotenv()
 
 logger = logging.getLogger("syncops.main")
 

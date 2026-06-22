@@ -1,10 +1,11 @@
 import os
-from dotenv import load_dotenv
-load_dotenv()
 import json
 import logging
 import httpx
 from typing import Optional, Any
+
+from dotenv import load_dotenv
+load_dotenv()
 
 logger = logging.getLogger("syncops.verifier_gate")
 

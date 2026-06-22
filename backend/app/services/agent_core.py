@@ -1,11 +1,12 @@
 import os
 from dotenv import load_dotenv
-load_dotenv()
 import json
 import logging
 from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
 import google.generativeai as genai
+
+load_dotenv()
 
 logger = logging.getLogger("syncops.agent_core")
 
@@ -74,10 +75,16 @@ class GeminiDecider:
             
             # 1. Ask Gemini Decider for action plan
             prompt = (
-                "You are an enterprise operations agent.\n"
-                "Decide the correct action and extract parameters.\n"
+                "You are an enterprise operations decider agent.\n"
+                "Analyze the support ticket, decide on the correct action, and extract parameters.\n"
                 f"Ticket: {ticket_text}\n"
-                f"Order ID (if any): {order_id}\n"
+                f"Order ID (if any): {order_id}\n\n"
+                "Output JSON matching this schema exactly:\n"
+                "{\n"
+                "  \"action\": \"Action Name (e.g., Update Address, Check Inventory, Process Return, Upgrade Account)\",\n"
+                "  \"reasoning\": \"Step-by-step processing reasoning justification\",\n"
+                "  \"parameters\": {\"param_key\": \"value\"}\n"
+                "}"
             )
             if error_context:
                 prompt += (
