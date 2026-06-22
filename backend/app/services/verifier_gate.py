@@ -2,7 +2,6 @@ import os
 import json
 import logging
 import httpx
-from typing import Optional, Any
 
 from dotenv import load_dotenv
 load_dotenv()
