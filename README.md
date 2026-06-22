@@ -145,7 +145,7 @@ graph TD
     Ticket[Customer Ticket Upload]:::client --> S3Ingest[AWS S3 Bucket Ingest]:::serverless
     S3Ingest -->|S3 Event| Lambda[AWS Lambda Router]:::serverless
     
-    subgraph Kubernetes Cluster [K3s / Local K3d]
+    subgraph "Kubernetes Cluster [K3s / Local K3d]"
         direction TB
         Lambda -->|Kafka API| KafkaBroker[Redpanda Queue Broker]:::queue
         
@@ -163,7 +163,7 @@ graph TD
     subgraph AI Decision Core
         direction LR
         TicketWorker -->|API Request| Gemini[Google Gemini 3.1 Decider]:::client
-        TicketWorker -->|Verification Gate| LocalLLM[vLLM / Ollama Verifier (Gemma 4 E4B)]:::client
+        TicketWorker -->|Verification Gate| LocalLLM["vLLM / Ollama Verifier (Gemma 4 E4B)"]:::client
     end
     
     TicketWorker -->|Action Update| MockEnterprise[Mock CRM/ERP Sandbox]:::database
