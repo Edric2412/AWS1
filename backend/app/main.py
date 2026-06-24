@@ -11,6 +11,7 @@ from app.kafka.consumers.ticket_consumer import TicketConsumer
 from app.kafka.producer import producer_manager
 from app.services.mock_crm_erp import router as mock_router
 from app.telemetry import init_telemetry
+from app.services.mcp_server import mcp
 
 # Call load_dotenv here after all imports are safely resolved
 load_dotenv()
@@ -76,6 +77,9 @@ init_telemetry(app)
 
 # Mount the mock CRM & ERP router
 app.include_router(mock_router, prefix="/api/v1", tags=["sandbox"])
+
+# Mount MCP Server SSE App
+app.mount("/mcp", mcp.sse_app())
 
 class TicketIngestRequest(BaseModel):
     ticket_text: str

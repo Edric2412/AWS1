@@ -42,13 +42,26 @@ async def test_ticket_consumer_calls_crm_erp(mocker):
     )
     mocker.patch.object(consumer.extraction_engine, "extract_parameters", return_value=extracted_params)
     
-    # Mock httpx AsyncClient call
-    mock_response = mocker.Mock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {"status": "success", "message": "Address updated"}
+    # Mock sse_client and ClientSession for MCP client
+    mock_read = mocker.MagicMock()
+    mock_write = mocker.MagicMock()
     
-    # Mock httpx PUT request
-    mocker.patch("httpx.AsyncClient.put", new_callable=mocker.AsyncMock, return_value=mock_response)
+    mock_sse = mocker.patch("app.kafka.consumers.ticket_consumer.sse_client")
+    mock_sse.return_value.__aenter__.return_value = (mock_read, mock_write)
+    
+    mock_sess_instance = mocker.MagicMock()
+    mock_sess_instance.initialize = mocker.AsyncMock()
+    
+    # Mock call_tool return value
+    mock_content = mocker.MagicMock()
+    mock_content.text = '{"status": "success", "message": "Address updated"}'
+    mock_result = mocker.MagicMock()
+    mock_result.isError = False
+    mock_result.content = [mock_content]
+    mock_sess_instance.call_tool = mocker.AsyncMock(return_value=mock_result)
+    
+    mock_client_session = mocker.patch("app.kafka.consumers.ticket_consumer.ClientSession")
+    mock_client_session.return_value.__aenter__.return_value = mock_sess_instance
     
     # Mock audit sending
     mocker.patch.object(producer_manager, "send_event", new_callable=mocker.AsyncMock)
@@ -57,10 +70,18 @@ async def test_ticket_consumer_calls_crm_erp(mocker):
     res = await consumer.execute_crm_erp_call(extracted_params)
     
     assert res["status_code"] == 200
-    assert res["method"] == "PUT"
-    url = res.get("url")
-    assert isinstance(url, str)
-    assert "orders/ORD-12345/address" in url
+    assert res["data"] == {"status": "success", "message": "Address updated"}
+    
+    mock_sess_instance.call_tool.assert_called_once_with(
+        name="modify_order_address",
+        arguments={
+            "order_id": "ORD-12345",
+            "street_address": "789 Pine Ave",
+            "city": "Chicago",
+            "zipcode": "60601"
+        },
+        meta=None
+    )
     
     # Clean up
     await consumer.extraction_engine.close()
