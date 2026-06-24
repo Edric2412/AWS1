@@ -18,7 +18,7 @@
 10. [Kubernetes Deployment](#kubernetes-deployment)
 11. [Terraform Infrastructure](#terraform-infrastructure)
 12. [CI/CD Pipeline](#cicd-pipeline)
-13. [Prometheus + Grafana (OpenTelemetry) Observability](#prometheus--grafana-opentelemetry-observability)
+13. [Prometheus (OpenTelemetry) Observability](#prometheus-opentelemetry-observability)
 14. [vLLM & Ollama Local Serving](#vllm--ollama-local-serving)
 15. [Pytest Integration & Testing Strategy](#pytest-integration--testing-strategy)
 16. [AWS Deployment](#aws-deployment)
@@ -52,7 +52,7 @@ SyncOps AI orchestrates multiple cloud and AI systems to handle customer tasks a
 - **Mock Enterprise Sandbox**: The agent executes actions on mock **CRM** (HubSpot/Salesforce) and **ERP** (SAP/Odoo) endpoints.
 - **Idempotency Guard**: Downstream database and tool invocation writes use a deterministic idempotency key derived from Kafka metadata: `SHA256(Topic + Partition + Offset)` to prevent double executions (e.g., double-refunds).
 - **Parquet Data Lake**: Execution traces and token metrics are serialized as partitioned **Parquet** files on **AWS S3** (or emulated via **LocalStack**) and queried locally for zero cost using **DuckDB** (acting as our lightweight local **Data Warehouse**).
-- **GitOps & Observability**: Managed via **Terraform**, deployed on **Kubernetes**, and instrumented with **OpenTelemetry** (using GenAI Semantic Conventions), Prometheus, and Grafana.
+- **GitOps & Observability**: Managed via **Terraform**, deployed on **Kubernetes**, and instrumented with **OpenTelemetry** (using GenAI Semantic Conventions) and Prometheus.
 
 ---
 
@@ -91,13 +91,6 @@ Upon resolving a ticket, a background consumer serializes the agent's full reaso
 s3://syncops-data-lake/audit/year=YYYY/month=MM/day=DD/ticket_id=UUID.parquet
 ```
 To query these logs without running a paid data warehouse (like Snowflake), the system integrates **DuckDB**. DuckDB runs directly in Python to execute fast SQL analytical queries over these S3 Parquet files at zero cost.
-
-### 5. Operator Monitoring Dashboard
-A React dashboard visualizing:
-- **Automation Rate**: Percentage of tickets solved automatically vs escalated.
-- **Queue Lag**: Real-time message count per topic (`tickets-critical-write` vs. `tickets-standard-update`).
-- **GenAI Token Efficiency**: Visualization plotting exact cost savings of local vLLM vs Gemini based on input/output tokens.
-- **System SLA**: Request latencies and average AI processing duration.
 
 ---
 
@@ -143,12 +136,7 @@ A React dashboard visualizing:
 │         ▼             ▼                                                              │
 │  ┌────────────┐  ┌───────────┐                                                       │
 │  │ Prometheus │  │ Langfuse  │                                                       │
-│  └──────┬─────┘  └───────────┘                                                       │
-│         │                                                                            │
-│         ▼                                                                            │
-│  ┌────────────┐                                                                      │
-│  │  Grafana   │                                                                      │
-│  └────────────┘                                                                      │
+│  └────────────┘  └───────────┘                                                       │
 └──────────────────────────────────────────────────────────────────────────────────────┘
         │
         ├──────────────────────────┬──────────────────────────┐
@@ -164,11 +152,6 @@ A React dashboard visualizing:
 ---
 
 ## Technology Stack
-
-### Frontend
-- **React 18**: Built with hooks and functional components.
-- **Tailwind CSS**: Modern CSS variables layout styling.
-- **Recharts**: Performance metrics charting.
 
 ### Backend & AI Layer
 - **FastAPI (Python 3.11)**: Async REST API layer with Pydantic v2 schemas.
@@ -196,9 +179,6 @@ A React dashboard visualizing:
 
 ```
 syncops-ai/
-├── frontend/
-│   └── src/ ...
-│
 ├── backend/
 │   ├── app/
 │   │   ├── main.py                  # FastAPI server
@@ -265,11 +245,11 @@ syncops-ai/
 - Configure GitHub Actions to check code formatting and verify test runs.
 
 ### Phase 2 — Event-Driven Architecture (Redpanda)
-**Keywords**: Redpanda, Apache Kafka, OpenTelemetry, Prometheus, Grafana
+**Keywords**: Redpanda, Apache Kafka, OpenTelemetry, Prometheus
 - Set up Redpanda in Docker Compose.
 - Write FastAPI consumers listening to `incoming-tickets` and `audit-logs` topics.
 - Instrument consumers and API endpoints with OpenTelemetry SDK.
-- Configure the OTel Collector to scrape traces and pipe metrics to Prometheus/Grafana.
+- Configure the OTel Collector to scrape traces and pipe metrics to Prometheus.
 
 ### Phase 3 — Serverless, Data Lake & DuckDB
 **Keywords**: AWS Lambda, AWS S3, Parquet, LocalStack, DuckDB
@@ -286,11 +266,10 @@ syncops-ai/
 - Configure CI/CD actions to deploy to staging on merge.
 
 ### Phase 5 — Dual-Model Agreement Core
-**Keywords**: Google Gemini API, vLLM / Ollama, Agent Loop, React
+**Keywords**: Google Gemini API, vLLM / Ollama, Agent Loop
 - Implement the decider-agent loop in `agent_core.py` using Google Gemini 3.1 Flash-Lite.
 - Implement the self-correcting retry loop for tool calling.
 - Add the consensus check verifier gate using local vLLM / Ollama (Gemma 4 E4B).
-- Build the React monitoring dashboard showing real-time automation charts.
 
 ---
 
@@ -374,7 +353,7 @@ The project implements a complete GitOps workflow via GitHub Actions to automate
 
 ---
 
-## Prometheus + Grafana (OpenTelemetry) Observability
+## Prometheus (OpenTelemetry) Observability
 
 Application metrics are collected via OpenTelemetry APIs, received by the OTel Collector, and parsed into Prometheus.
 
@@ -497,7 +476,6 @@ This project structure directly validates your experience with:
 | | **Data Warehouse / Analytics**| Time-partitioned Parquet files on S3 queried at zero-cost using **DuckDB**. |
 | | **PostgreSQL** | Self-hosted storage engine running in a container, housing system configs and audit records. |
 | **Observability** | **Prometheus** | System health and execution metrics scraped via OTel Collector pipelines. |
-| | **Grafana** | Visualization panels logging latency, queue lag, and automation rates. |
 | | **Pytest** | Testing framework with strict $\ge 80\%$ code coverage goals. |
 | **Enterprise Integrations** | **CRM** | Benchmarking tool calling against mock CRM (Salesforce/HubSpot) schemas. |
 | | **ERP** | Benchmarking tool calling against mock ERP (SAP/Odoo) schemas. |
@@ -509,7 +487,7 @@ This project structure directly validates your experience with:
 | Milestone | Objective |
 | :--- | :--- |
 | **Phase 1 Complete** | API starts successfully, mocks CRM/ERP responses, parses text, and passes Pytest suites. |
-| **Phase 2 Complete** | Ticket events publish and process via Redpanda queue with OpenTelemetry instrumentation logged in Grafana. |
+| **Phase 2 Complete** | Ticket events publish and process via Redpanda queue with OpenTelemetry instrumentation. |
 | **Phase 3 Complete** | Lambda trigger intercepts local S3 uploads on LocalStack and triggers consumers; Parquet logs write to S3 and query successfully via DuckDB. |
 | **Phase 4 Complete** | `deploy-ephemeral.sh` successfully provisions, runs E2E pipeline with self-hosted PostgreSQL, and destroys AWS staging environment. |
-| **Phase 5 Complete** | Dual-agreement (Gemini + local vLLM/Ollama) and self-correcting tool call execution run successfully; React UI renders system charts. |
+| **Phase 5 Complete** | Dual-agreement (Gemini + local vLLM/Ollama) and self-correcting tool call execution run successfully. |
