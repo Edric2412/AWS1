@@ -28,7 +28,7 @@
 - [📂 Project Structure](#-project-structure)
 - [💻 Code Highlights](#-code-highlights)
 - [🚀 Getting Started & Deployment](#-getting-started--deployment)
-- [📊 Prometheus + Grafana Observability](#-prometheus--grafana-observability)
+- [📊 Prometheus Observability](#-prometheus-observability)
 - [🔑 License](#-license)
 
 ---
@@ -55,7 +55,7 @@ SyncOps AI orchestrates multiple cloud and AI systems to handle customer tasks a
 * **Mock Enterprise Sandbox**: The agent executes actions on mock **CRM** (HubSpot/Salesforce) and **ERP** (SAP/Odoo) endpoints.
 * **Idempotency Guard**: Downstream database and tool invocation writes use a deterministic idempotency key derived from Kafka metadata: `SHA256(Topic + Partition + Offset)` to prevent double executions (e.g., double-refunds).
 * **Parquet Data Lake**: Execution traces and token metrics are serialized as partitioned **Parquet** files on **AWS S3** (or emulated via **LocalStack**) and queried locally for zero cost using **DuckDB**.
-* **GitOps & Observability**: Managed via **Terraform**, deployed on **Kubernetes**, and instrumented with **OpenTelemetry** (using GenAI Semantic Conventions), Prometheus, and Grafana.
+* **GitOps & Observability**: Managed via **Terraform**, deployed on **Kubernetes**, and instrumented with **OpenTelemetry** (using GenAI Semantic Conventions) and Prometheus.
 
 ---
 
@@ -111,13 +111,7 @@ SyncOps AI orchestrates multiple cloud and AI systems to handle customer tasks a
     </td>
   </tr>
   <tr style="border: none;">
-    <td width="50%" style="border: none; padding: 15px; vertical-align: top;">
-      <div style="background-color: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 20px; height: 100%;">
-        <h4 style="color: #58a6ff; margin-top: 0;">📊 Real-time Operator Dashboard</h4>
-        <p style="color: #8b949e; font-size: 14px; line-height: 1.5;">React dashboard displaying automation rate graphs, Kafka topic lags, token efficiency metrics, and average system SLAs.</p>
-      </div>
-    </td>
-    <td width="50%" style="border: none; padding: 15px; vertical-align: top;">
+    <td colspan="2" style="border: none; padding: 15px; vertical-align: top;">
       <div style="background-color: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 20px; height: 100%;">
         <h4 style="color: #58a6ff; margin-top: 0;">⚙️ Terraform Ephemeral Staging</h4>
         <p style="color: #8b949e; font-size: 14px; line-height: 1.5;">Automated provisioning script that spins up the AWS staging sandbox, tests the event stream end-to-end, and destroys the resources immediately to keep AWS costs at exactly $0.</p>
@@ -157,7 +151,6 @@ graph TD
         
         TicketWorker -->|OTel Traces| OTel[OpenTelemetry Collector]:::monitoring
         OTel --> Prometheus[Prometheus Metrics]:::monitoring
-        Prometheus --> Grafana[Grafana Dashboard]:::monitoring
     end
     
     subgraph AI Decision Core
@@ -176,11 +169,10 @@ graph TD
 
 | Layer | Technologies Used |
 |---|---|
-| **Frontend** | React 18, Tailwind CSS, Recharts |
 | **Backend & AI** | FastAPI, Python 3.11, Google Gemini 3.1 Flash-Lite, vLLM / Ollama (Gemma 4 E4B), SQLAlchemy, PostgreSQL 15, DuckDB |
 | **Ingestion** | AWS Lambda, Redpanda (Kafka), AWS S3 |
 | **Infrastructure** | Terraform, Kubernetes (K3s/K3d), LocalStack, Docker, Helm |
-| **Observability** | OpenTelemetry, Prometheus, Grafana, Langfuse |
+| **Observability** | OpenTelemetry, Prometheus, Langfuse |
 
 ---
 
@@ -378,9 +370,9 @@ terraform destroy -auto-approve
 
 ---
 
-## 📊 Prometheus + Grafana Observability
+## 📊 Prometheus Observability
 
-GenAI metrics are converted to Standard OpenTelemetry signals and monitored in Grafana:
+GenAI metrics are converted to Standard OpenTelemetry signals and scraped by Prometheus:
 
 | Metric Name | Instrument | Label / Dimension | Target SLA |
 |---|---|---|---|
