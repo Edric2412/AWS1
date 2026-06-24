@@ -39,12 +39,14 @@ async def test_verifier_consensus_match(mocker):
     await verifier.close()
 
 
+# backend/tests/test_agent_core.py
+
 @pytest.mark.asyncio
 async def test_self_correcting_retry_loop(mocker):
     # Mock Gemini API Client
     mock_model = mocker.patch("app.services.agent_core.genai.GenerativeModel")
     
-    # Mock first response (failure) with function call
+    # Mock first response (failure case) with a function call containing invalid data
     mock_fc1 = mocker.Mock()
     mock_fc1.name = "process_return"
     mock_fc1.args = {"order_id": "ORD-999", "quantity": -5}
@@ -61,7 +63,7 @@ async def test_self_correcting_retry_loop(mocker):
     mock_resp1 = mocker.Mock()
     mock_resp1.candidates = [mock_candidate1]
     
-    # Mock second response (corrected success) with function call
+    # Mock second response (corrected success case) with a valid function call
     mock_fc2 = mocker.Mock()
     mock_fc2.name = "process_return"
     mock_fc2.args = {"order_id": "ORD-999", "quantity": 5}
@@ -78,16 +80,23 @@ async def test_self_correcting_retry_loop(mocker):
     mock_resp2 = mocker.Mock()
     mock_resp2.candidates = [mock_candidate2]
     
-    mock_model.return_value.generate_content.side_effect = [mock_resp1, mock_resp2]
+    # Provide items to match max_attempts=3 and prevent StopIteration
+    mock_model.return_value.generate_content.side_effect = [mock_resp1, mock_resp2, mock_resp2]
     
     decider = GeminiDecider()
     
-    # Mock client endpoint returns a validation error first, then success
-    mock_exec = AsyncMock()
-    mock_exec.side_effect = [
+    # FIX: Use a sequential callable pop-queue instead of a raw list 
+    # to guarantee cross-version compatibility in Python 3.14's AsyncMock
+    responses = [
         {"status_code": 422, "data": {"detail": "quantity must be greater than zero"}},
+        {"status_code": 200, "data": {"status": "success"}},
         {"status_code": 200, "data": {"status": "success"}}
     ]
+    
+    def exec_side_effect(*args, **kwargs):
+        return responses.pop(0)
+        
+    mock_exec = AsyncMock(side_effect=exec_side_effect)
     
     tools = [
         {

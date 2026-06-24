@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import httpx
+from typing import Optional, Dict, Any
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -15,7 +16,7 @@ class ConsensusVerifier:
     def __init__(self):
         self.client = httpx.AsyncClient(timeout=15.0)
 
-    async def verify_action(self, ticket_text: str, proposed_action: str, parameters: dict = None) -> bool:
+    async def verify_action(self, ticket_text: str, proposed_action: str, parameters: Optional[Dict[str, Any]] = None) -> bool:
         """Asks local Gemma model to verify if the proposed action and parameters are correct and safe."""
         if parameters is None:
             parameters = {}

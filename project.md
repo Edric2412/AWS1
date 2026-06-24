@@ -49,7 +49,7 @@ SyncOps AI orchestrates multiple cloud and AI systems to handle customer tasks a
 - **Asynchronous Processing**: Python consumers pull tickets off specialized Kafka partitions, allowing independent worker scaling.
 - **Multi-LLM Decision Core**: The agent uses **Google Gemini 3.1 Flash-Lite** (via standard free-tier API) as the primary decider, with local **vLLM / Ollama** acting as the verifier and extraction core.
 - **Zero-Schema vLLM Extraction**: A local **vLLM / Ollama** engine utilizes guided decoding (JSON schema constraint sampling via **Outlines**) to guarantee 100% syntactically valid parameter extraction.
-- **Mock Enterprise Sandbox**: The agent executes actions on mock **CRM** (HubSpot/Salesforce) and **ERP** (SAP/Odoo) endpoints.
+- **Model Context Protocol (MCP) Integration**: Enterprise system updates are decoupled and executed via a dedicated **Model Context Protocol (MCP)** server (implemented using Python's **FastMCP**). The worker functions as an MCP client over Server-Sent Events (SSE) to invoke mock **CRM** (HubSpot/Salesforce) and **ERP** (SAP/Odoo) tools securely.
 - **Idempotency Guard**: Downstream database and tool invocation writes use a deterministic idempotency key derived from Kafka metadata: `SHA256(Topic + Partition + Offset)` to prevent double executions (e.g., double-refunds).
 - **Parquet Data Lake**: Execution traces and token metrics are serialized as partitioned **Parquet** files on **AWS S3** (or emulated via **LocalStack**) and queried locally for zero cost using **DuckDB** (acting as our lightweight local **Data Warehouse**).
 - **GitOps & Observability**: Managed via **Terraform**, deployed on **Kubernetes**, and instrumented with **OpenTelemetry** (using GenAI Semantic Conventions) and Prometheus.
@@ -77,10 +77,18 @@ Instead of relying on raw prompting for JSON extraction, the local **vLLM** engi
 ### 1. Event Ingestion & Semantic Routing
 When a support ticket is uploaded to an S3 bucket, an **AWS Lambda** function is triggered. The Lambda performs semantic routing (using regex token parsing or a fast classifier) to classify the ticket's intent (e.g., critical refund vs. standard address update) and publishes the ticket to the corresponding topic queue (`tickets-critical-write` or `tickets-standard-update`) on **Redpanda/Kafka**.
 
-### 2. Mock ERP & CRM Sandbox
-To safely test the agent, a local mock service provides simulated REST endpoints:
-- **CRM Service**: Handles contact deal updates, customer profile lookups, and account tier upgrades.
-- **ERP Service**: Handles inventory checks, invoice generation, order address modifications, and returns processing.
+### 2. FastMCP CRM & ERP Server
+To safely and standardizedly interact with downstream services, the application implements a dedicated **Model Context Protocol (MCP)** server:
+- **SyncOps ERP CRM Server**: Built with Python's **FastMCP** framework and mounted on FastAPI via SSE (`/mcp/sse`).
+- **MCP Client Session**: The consumer worker establishes a persistent SSE connection (`mcp.client.sse.sse_client`) and session to dynamically retrieve and invoke ERP and CRM tools.
+- **Exposed MCP Tools**:
+  - `check_inventory`: Verifies item stock levels across warehouses.
+  - `modify_order_address`: Updates delivery addresses (with idempotency check).
+  - `generate_invoice`: Generates billing invoices.
+  - `process_return`: Processes returns for delivered items.
+  - `get_customer_profile`: Fetches CRM customer profile metadata.
+  - `modify_deal_stage`: Moves sales opportunity stages.
+  - `upgrade_customer_tier`: Modifies account tiers.
 
 ### 3. Structural Extraction Engine (vLLM / Ollama)
 To avoid high LLM API costs, the system routes raw text to a quantized model (e.g. Gemma 4 E4B) served via **vLLM on Google Colab** (exposing it via ngrok) or **Ollama locally on CPU**. Using guided decoding, the model is mathematically restricted to outputting JSON that matches the strict Pydantic schemas for order details, customer IDs, and request parameters.
@@ -155,6 +163,7 @@ To query these logs without running a paid data warehouse (like Snowflake), the 
 
 ### Backend & AI Layer
 - **FastAPI (Python 3.11)**: Async REST API layer with Pydantic v2 schemas.
+- **Model Context Protocol (MCP)**: Implemented using Python's **FastMCP** to standardizedly expose CRM/ERP operations as tools, consumed via an SSE client (`sse_client`).
 - **Google Gemini 3.1 Flash-Lite (Free Tier API)**: Principal decider client.
 - **vLLM / Ollama**: Structural entity extraction and verification served via Colab (GPU) or Ollama (CPU).
 - **SQLAlchemy + PostgreSQL 15**: Containerized database (self-hosted locally / in K8s, replacing managed cloud RDS) for metadata and metrics logging.
@@ -186,6 +195,7 @@ syncops-ai/
 │   │   ├── services/
 │   │   │   ├── agent_core.py        # Decider loop (Google Gemini API)
 │   │   │   ├── verifier_gate.py     # Verification gate (vLLM / Ollama)
+│   │   │   ├── mcp_server.py        # FastMCP Server definition (SyncOps ERP CRM)
 │   │   │   ├── mock_crm_erp.py      # Mock Salesforce/SAP API endpoints
 │   │   │   ├── extraction.py        # vLLM/Ollama structural parser
 │   │   │   └── dw_exporter.py       # Parquet serializer & S3 exporter
@@ -449,7 +459,7 @@ graph TD
     F -->|Yes| H[Trigger Verifier Gate - local vLLM / Ollama]
     H --> I{"Consensus Reached?"}
     I -->|No| J[Route to Human Queue]
-    I -->|Yes| K[Execute CRM / ERP Tool Call]
+    I -->|Yes| K[Invoke MCP CRM / ERP Tool Call]
     K --> L{"API Success?"}
     L -->|No| M[Self-Correcting Error Parsing]
     M --> E
@@ -467,6 +477,7 @@ This project structure directly validates your experience with:
 | **AI Layer** | **vLLM** | Serves Gemma 4 E4B on Colab for high-throughput structural ticket extraction. |
 | | **Google Gemini** | Primary decider model (Gemini 3.1 Flash-Lite) invoked via the Google AI Studio free tier. |
 | | **Ollama** | Local CPU-bound model execution fallback for offline development. |
+| | **MCP** | Model Context Protocol integration using FastMCP to standardizedly expose CRM/ERP operations as tools. |
 | **DevOps & Infra**| **Kubernetes** | Local cluster orchestration via K3d; K3s deployment hosted on AWS EC2 with self-hosted DB. |
 | | **Terraform** | IaC architecture for S3, ECR, VPC, Lambda, and DynamoDB backend (no RDS). |
 | | **CI/CD** | GitHub Actions workflows executing Pytest, LocalStack tests, and Docker builds. |

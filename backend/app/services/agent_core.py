@@ -169,6 +169,12 @@ class GeminiDecider:
             if status_code < 400:
                 # Success!
                 logger.info("Tool call succeeded on attempt %d", attempts)
+                return {
+                    "status": "success",
+                    "action": decision.action,
+                    "api_result": api_result,
+                    "attempts": attempts
+                }
             else:
                 # Failure! Extract validation details for correction context
                 error_data = api_result.get("data", {})

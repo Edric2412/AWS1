@@ -52,7 +52,7 @@ SyncOps AI orchestrates multiple cloud and AI systems to handle customer tasks a
 * **Asynchronous Processing**: Python consumers pull tickets off specialized Kafka partitions, allowing independent worker scaling.
 * **Multi-LLM Decision Core**: The agent uses **Google Gemini 3.1 Flash-Lite** as the primary decider, with local **vLLM / Ollama** acting as the verifier and extraction core.
 * **Zero-Schema vLLM Extraction**: A local **vLLM / Ollama** engine utilizes guided decoding (JSON schema constraint sampling via **Outlines**) to guarantee 100% syntactically valid parameter extraction.
-* **Mock Enterprise Sandbox**: The agent executes actions on mock **CRM** (HubSpot/Salesforce) and **ERP** (SAP/Odoo) endpoints.
+* **Model Context Protocol (MCP) Integration**: Enterprise system updates are decoupled and executed via a dedicated **Model Context Protocol (MCP)** server (implemented using Python's **FastMCP**). The worker functions as an MCP client over Server-Sent Events (SSE) to invoke mock **CRM** (HubSpot/Salesforce) and **ERP** (SAP/Odoo) tools securely.
 * **Idempotency Guard**: Downstream database and tool invocation writes use a deterministic idempotency key derived from Kafka metadata: `SHA256(Topic + Partition + Offset)` to prevent double executions (e.g., double-refunds).
 * **Parquet Data Lake**: Execution traces and token metrics are serialized as partitioned **Parquet** files on **AWS S3** (or emulated via **LocalStack**) and queried locally for zero cost using **DuckDB**.
 * **GitOps & Observability**: Managed via **Terraform**, deployed on **Kubernetes**, and instrumented with **OpenTelemetry** (using GenAI Semantic Conventions) and Prometheus.
@@ -91,8 +91,8 @@ SyncOps AI orchestrates multiple cloud and AI systems to handle customer tasks a
     </td>
     <td width="50%" style="border: none; padding: 15px; vertical-align: top;">
       <div style="background-color: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 20px; height: 100%;">
-        <h4 style="color: #58a6ff; margin-top: 0;">🏢 Mock ERP & CRM Sandbox</h4>
-        <p style="color: #8b949e; font-size: 14px; line-height: 1.5;">Simulated CRM (Salesforce/HubSpot) and ERP (SAP/Odoo) API endpoints with validations, latency simulations, and idempotency check tables.</p>
+        <h4 style="color: #58a6ff; margin-top: 0;">🏢 FastMCP CRM & ERP Server</h4>
+        <p style="color: #8b949e; font-size: 14px; line-height: 1.5;">Exposes mock CRM (Salesforce/HubSpot) and ERP (SAP/Odoo) tools (<code>check_inventory</code>, <code>modify_order_address</code>, <code>generate_invoice</code>, <code>process_return</code>, <code>get_customer_profile</code>, <code>modify_deal_stage</code>, <code>upgrade_customer_tier</code>) via a FastMCP server over Server-Sent Events (SSE).</p>
       </div>
     </td>
   </tr>
@@ -127,14 +127,14 @@ SyncOps AI orchestrates multiple cloud and AI systems to handle customer tasks a
 The following diagram illustrates the event pipeline, Kubernetes boundaries, and data flows:
 
 ```mermaid
-%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#1e293b', 'primaryTextColor': '#f8fafc', 'lineColor': '#38bdf8', 'edgeLabelBackground': '#0f172a' }}}%%
+%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#111827', 'primaryTextColor': '#f3f4f6', 'lineColor': '#6b7280', 'edgeLabelBackground': '#1f2937' }}}%%
 graph TD
-    classDef client fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc;
-    classDef serverless fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#f8fafc;
-    classDef queue fill:#7c2d12,stroke:#f97316,stroke-width:2px,color:#f8fafc;
-    classDef worker fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#f8fafc;
-    classDef database fill:#581c87,stroke:#c084fc,stroke-width:2px,color:#f8fafc;
-    classDef monitoring fill:#334155,stroke:#94a3b8,stroke-width:2px,color:#f8fafc;
+    classDef client fill:#111827,stroke:#3b82f6,stroke-width:2px,color:#f3f4f6;
+    classDef serverless fill:#111827,stroke:#0ea5e9,stroke-width:2px,color:#f3f4f6;
+    classDef queue fill:#111827,stroke:#f43f5e,stroke-width:2px,color:#f3f4f6;
+    classDef worker fill:#111827,stroke:#10b981,stroke-width:2px,color:#f3f4f6;
+    classDef database fill:#111827,stroke:#6366f1,stroke-width:2px,color:#f3f4f6;
+    classDef monitoring fill:#111827,stroke:#94a3b8,stroke-width:2px,color:#9ca3af;
 
     Ticket[Customer Ticket Upload]:::client --> S3Ingest[AWS S3 Bucket Ingest]:::serverless
     S3Ingest -->|S3 Event| Lambda[AWS Lambda Router]:::serverless
@@ -159,8 +159,9 @@ graph TD
         TicketWorker -->|Verification Gate| LocalLLM["vLLM / Ollama Verifier (Gemma 4 E4B)"]:::client
     end
     
-    TicketWorker -->|Action Update| MockEnterprise[Mock CRM/ERP Sandbox]:::database
-    S3DataLake -->|Direct SQL Query| DuckDB[DuckDB Analytics Client]:::database
+    TicketWorker -->|MCP Client over SSE| MCPServer["FastMCP Server at /mcp"]:::database
+    MCPServer -->|Tool Call| MockEnterprise["Mock CRM and ERP Sandbox"]:::database
+    S3DataLake -->|Direct SQL Query| DuckDB["DuckDB Analytics Client"]:::database
 ```
 
 ---
@@ -169,7 +170,7 @@ graph TD
 
 | Layer | Technologies Used |
 |---|---|
-| **Backend & AI** | FastAPI, Python 3.11, Google Gemini 3.1 Flash-Lite, vLLM / Ollama (Gemma 4 E4B), SQLAlchemy, PostgreSQL 15, DuckDB |
+| **Backend & AI** | FastAPI, Python 3.11, Model Context Protocol (MCP) via FastMCP, Google Gemini 3.1 Flash-Lite, vLLM / Ollama (Gemma 4 E4B), SQLAlchemy, PostgreSQL 15, DuckDB |
 | **Ingestion** | AWS Lambda, Redpanda (Kafka), AWS S3 |
 | **Infrastructure** | Terraform, Kubernetes (K3s/K3d), LocalStack, Docker, Helm |
 | **Observability** | OpenTelemetry, Prometheus, Langfuse |
@@ -187,6 +188,7 @@ syncops-ai/
 │   │   ├── services/
 │   │   │   ├── agent_core.py        # Decider loop (Google Gemini API)
 │   │   │   ├── verifier_gate.py     # Verification gate (vLLM / Ollama)
+│   │   │   ├── mcp_server.py        # FastMCP Server definition (SyncOps ERP CRM)
 │   │   │   ├── mock_crm_erp.py      # Mock Salesforce/SAP API endpoints
 │   │   │   ├── extraction.py        # vLLM/Ollama structural parser
 │   │   │   ├── dw_exporter.py       # Parquet serializer & S3 exporter
