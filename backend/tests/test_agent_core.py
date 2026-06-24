@@ -43,40 +43,10 @@ async def test_verifier_consensus_match(mocker):
 async def test_self_correcting_retry_loop(mocker):
     # Mock Gemini API Client
     mock_model = mocker.patch("app.services.agent_core.genai.GenerativeModel")
-    
-    # Mock first response (failure) with function call
-    mock_fc1 = mocker.Mock()
-    mock_fc1.name = "process_return"
-    mock_fc1.args = {"order_id": "ORD-999", "quantity": -5}
-    
-    mock_part1 = mocker.Mock()
-    mock_part1.function_call = mock_fc1
-    
-    mock_content1 = mocker.Mock()
-    mock_content1.parts = [mock_part1]
-    
-    mock_candidate1 = mocker.Mock()
-    mock_candidate1.content = mock_content1
-    
     mock_resp1 = mocker.Mock()
-    mock_resp1.candidates = [mock_candidate1]
-    
-    # Mock second response (corrected success) with function call
-    mock_fc2 = mocker.Mock()
-    mock_fc2.name = "process_return"
-    mock_fc2.args = {"order_id": "ORD-999", "quantity": 5}
-    
-    mock_part2 = mocker.Mock()
-    mock_part2.function_call = mock_fc2
-    
-    mock_content2 = mocker.Mock()
-    mock_content2.parts = [mock_part2]
-    
-    mock_candidate2 = mocker.Mock()
-    mock_candidate2.content = mock_content2
-    
+    mock_resp1.text = '{"action": "Process Return", "reasoning": "Return request", "parameters": {"order_id": "ORD-999", "quantity": -5}}'
     mock_resp2 = mocker.Mock()
-    mock_resp2.candidates = [mock_candidate2]
+    mock_resp2.text = '{"action": "Process Return", "reasoning": "Corrected quantity to positive number", "parameters": {"order_id": "ORD-999", "quantity": 5}}'
     
     mock_model.return_value.generate_content.side_effect = [mock_resp1, mock_resp2]
     
@@ -89,28 +59,12 @@ async def test_self_correcting_retry_loop(mocker):
         {"status_code": 200, "data": {"status": "success"}}
     ]
     
-    tools = [
-        {
-            "name": "process_return",
-            "description": "Process a return",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "order_id": {"type": "string"},
-                    "quantity": {"type": "integer"}
-                },
-                "required": ["order_id", "quantity"]
-            }
-        }
-    ]
-    
     # Execute loop
     result = await decider.execute_agent_loop(
         ticket_text="I want to return -5 items",
         order_id="ORD-999",
         verifier=None, # bypass consensus check for simplicity
-        execute_func=mock_exec,
-        tools=tools
+        execute_func=mock_exec
     )
     
     assert result["api_result"]["status_code"] == 200
