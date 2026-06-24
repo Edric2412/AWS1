@@ -2,7 +2,6 @@ import os
 import json
 import asyncio
 import logging
-import httpx
 import hashlib
 from aiokafka import AIOKafkaConsumer
 from opentelemetry import trace, metrics
@@ -212,16 +211,20 @@ class TicketConsumer:
                 meta = {"idempotency_key": idempotency_key} if idempotency_key else None
                 res = await session.call_tool(name=action, arguments=parameters, meta=meta)
                 if res.isError:
+                    error_msg = getattr(res.content[0], "text", "Unknown MCP error") if res.content else "Unknown MCP error"
                     return {
                         "status_code": 400,
-                        "data": {"detail": res.content[0].text if res.content else "Unknown MCP error"}
+                        "data": {"detail": error_msg}
                     }
                 data = {}
-                if res.content and hasattr(res.content[0], "text"):
-                    try:
-                        data = json.loads(res.content[0].text)
-                    except Exception:
-                        data = {"detail": res.content[0].text}
+                # FIX: Use safe getattr accessors for strict union types
+                if res.content:
+                    text_content = getattr(res.content[0], "text", None)
+                    if text_content is not None:
+                        try:
+                            data = json.loads(text_content)
+                        except Exception:
+                            data = {"detail": text_content}
                 return {
                     "status_code": 200,
                     "data": data
@@ -242,16 +245,20 @@ class TicketConsumer:
                     meta = {"idempotency_key": idempotency_key} if idempotency_key else None
                     res = await sess.call_tool(name=action, arguments=parameters, meta=meta)
                     if res.isError:
+                        error_msg = getattr(res.content[0], "text", "Unknown MCP error") if res.content else "Unknown MCP error"
                         return {
                             "status_code": 400,
-                            "data": {"detail": res.content[0].text if res.content else "Unknown MCP error"}
+                            "data": {"detail": error_msg}
                         }
                     data = {}
-                    if res.content and hasattr(res.content[0], "text"):
-                        try:
-                            data = json.loads(res.content[0].text)
-                        except Exception:
-                            data = {"detail": res.content[0].text}
+                    # FIX: Use safe getattr accessors here as well
+                    if res.content:
+                        text_content = getattr(res.content[0], "text", None)
+                        if text_content is not None:
+                            try:
+                                data = json.loads(text_content)
+                            except Exception:
+                                data = {"detail": text_content}
                     return {
                         "status_code": 200,
                         "data": data

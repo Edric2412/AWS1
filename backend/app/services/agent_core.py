@@ -91,7 +91,8 @@ class GeminiDecider:
                 f"Ticket: {ticket_text}\n"
                 f"Order ID (if any): {order_id}\n"
             )
-            if error_context:
+            # FIX: Explicit comparison prevents literal-tracking warning
+            if error_context != "":
                 prompt += (
                     "\nWARNING: Your previous tool invocation failed with this error:\n"
                     f"{error_context}\n"
@@ -102,7 +103,6 @@ class GeminiDecider:
                 response = model.generate_content(prompt)
                 
                 # Check for function call
-                has_function_call = False
                 action = "No Action"
                 parameters = {}
                 reasoning = ""
@@ -112,14 +112,14 @@ class GeminiDecider:
                     part = candidate.content.parts[0]
                     if hasattr(part, "function_call") and part.function_call:
                         function_call = part.function_call
-                        has_function_call = True
                         action = function_call.name
                         parameters = dict(function_call.args)
                     else:
                         reasoning = part.text or ""
                 except Exception as e:
                     logger.warning(f"Error parsing Gemini response content parts: {e}")
-                    reasoning = response.text if response else ""
+                    # FIX: Use getattr to eliminate unconditional object evaluation
+                    reasoning = getattr(response, "text", "")
                 
                 decision = AgentDecision(
                     action=action,
@@ -162,17 +162,13 @@ class GeminiDecider:
                 logger.exception("Tool execution failed")
                 api_result = {"status_code": 500, "data": {"detail": str(e)}}
                 
-            status_code = api_result.get("status_code", 500)
+            # Type-guarding avoids passing a wide union type into int()
+            raw_status = api_result.get("status_code", 500) if isinstance(api_result, dict) else 500
+            status_code = raw_status if isinstance(raw_status, int) else 500
             
             if status_code < 400:
                 # Success!
                 logger.info("Tool call succeeded on attempt %d", attempts)
-                return {
-                    "status": "success",
-                    "action": decision.action,
-                    "api_result": api_result,
-                    "attempts": attempts
-                }
             else:
                 # Failure! Extract validation details for correction context
                 error_data = api_result.get("data", {})
@@ -195,7 +191,8 @@ def clean_schema(schema: dict) -> dict:
     if not isinstance(schema, dict):
         return schema
     
-    cleaned = {}
+    # FIX: Explicit type hint prevents dictionary type-locking
+    cleaned: Dict[str, Any] = {}
     for k, v in schema.items():
         if k == "type" and isinstance(v, str):
             cleaned[k] = v.upper()
